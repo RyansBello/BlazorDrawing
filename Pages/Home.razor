@@ -1,0 +1,198 @@
+﻿@page "/"
+@inject IJSRuntime JS
+
+<h3>Simple Blazor Canvas Editor</h3>
+
+<div style="position: fixed;
+    top: 120px;
+    left: 300px;
+    z-index: 10; background-color: white; width: 750px">
+    <div>
+        Brush Size :
+        <input type="range" min="1" max="20" title="Brush Size"
+               @bind="brushSize" @bind:event="oninput"
+               @onchange="UpdateBrush" />
+        Color :
+        <input type="color" title="Selct Color For Text & Ink"
+               @bind="selectedColor" @bind:event="oninput" />
+
+    </div>
+    <p style="margin: 10px;"></p>
+    <div class="divinput">
+        Emoji :
+        <select @onchange="OnEmojiSelected" style="width: 100px; height: 30px;" title="List of Emojis">
+            <option value=""></option>
+            @foreach (var emoji in emojiList)
+            {
+                <option value="@emoji" style="align-items: center">@emoji</option>
+            }
+        </select>
+        <div class="input-container">
+            <button @onclick="AddText" title="Add Text">➕</button>
+            <input @bind="textInput" placeholder="Your text..." />
+        </div>
+        <input type="file" id="fileInput" @onchange="OnBackgroundUpload" accept="image/*" style="display: none;" />
+        <button class="btn btn-primary" title="Reset Canvas" @onclick="ResetCanvas">🔄</button>
+        <button class="btn btn-primary" title="Save Image" @onclick="SaveImage">💾</button>
+        <button class="btn btn-primary" title="Change Mode Input to Text & Emoji" @onclick="ModeTyping">🅰️</button>
+        <button class="btn btn-primary" title="Change Mode to Hand Drawing" @onclick="ModeHandDrawing">🖌️</button>
+        <button class="btn btn-primary" title="Upload Image" @onclick="TriggerFileUpload">🖼️</button>
+    </div>
+    <div>
+        <label style="font-family: Arial, sans-serif; font-size: 16px; color: white; background-color:darkred; display: block;" title="Active Input Mode"><strong><i> @infoMode</i></strong></label>
+    </div>
+</div>
+<p style="margin: 20px;"></p>
+<div>
+    <canvas id="editor-canvas" style="border:1px solid black; touch-action: none; height:auto;"></canvas>
+    <canvas id="drawing-canvas" style="position: absolute; left: 0; top: 0; pointer-events: none;"></canvas>
+</div>
+
+@code {
+    string textInput;
+    bool isHandDrawing = false;
+    string infoMode = "ACTIVE MODE : Text/Emoji";
+    private readonly List<string> emojiList = new()
+    {
+        "😀", "😁", "😂", "🤣", "😃", "😄", "😅", "😆", "😉", "😊", "😋", "😎", "😍",
+        "😘", "🥰", "😗", "😙", "😚", "🙂", "🤗", "🤩", "🤔", "🤨", "😐", "😑", "😶",
+        "🙄", "😏", "😣", "😥", "😮", "🤐", "😯", "😪", "😫", "🥱", "😴", "😌", "😛",
+        "😜", "😝", "🤤", "😒", "😓", "😔", "😕", "🙃", "🤑", "😲", "☹️", "🙁", "😖",
+        "😞", "😟", "😤", "😢", "😭", "😦", "😧", "😨", "😩", "🤯", "😬", "😰", "😱"
+        // Add other
+    };
+
+    private int _brushSize = 4;
+    private int brushSize
+    {
+        get => _brushSize;
+        set
+        {
+            if (_brushSize != value)
+            {
+                _brushSize = value;
+                _ = UpdateBrush();
+            }
+        }
+    }
+
+    private string _selectedColor = "#ff0000";
+    private string selectedColor
+    {
+        get => _selectedColor;
+        set
+        {
+            if (_selectedColor != value)
+            {
+                _selectedColor = value;
+                _ = UpdateBrush();
+            }
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            var defaultImageUrl = "images/myimage.png";
+            await JS.InvokeVoidAsync("canvasManager.load", "editor-canvas", "drawing-canvas", defaultImageUrl, selectedColor, brushSize);
+            StateHasChanged();
+        }
+    }
+
+    async Task AddText()
+    {
+        if (!string.IsNullOrWhiteSpace(textInput) && !isHandDrawing)
+        {
+            await JS.InvokeVoidAsync("canvasManager.addText", textInput, selectedColor);
+            textInput = "";
+        }
+    }
+
+    private async Task OnEmojiSelected(ChangeEventArgs e)
+    {
+        var emoji = e.Value?.ToString();
+        if (!string.IsNullOrEmpty(emoji) && !isHandDrawing)
+        {
+            await JS.InvokeVoidAsync("canvasManager.addText", emoji, selectedColor);
+            textInput = "";
+        }
+    }
+
+    async Task ResetCanvas()
+    {
+        await JS.InvokeVoidAsync("canvasManager.reset");
+    }
+
+    async Task SaveImage()
+    {
+        await JS.InvokeVoidAsync("canvasManager.saveImage");
+        var defaultImageUrl = "images/myimage.png";
+        await JS.InvokeVoidAsync("canvasManager.load", "editor-canvas", "drawing-canvas", defaultImageUrl, selectedColor, brushSize);
+    }
+
+    private async Task UpdateBrush()
+    {
+        await JS.InvokeVoidAsync("canvasManager.updateBrush", "editor-canvas", "drawing-canvas", selectedColor, brushSize);
+    }
+
+    private async Task ModeHandDrawing()
+    {
+        isHandDrawing = true;
+        infoMode = "ACTIVE MODE : Hand Drawing";
+        await JS.InvokeVoidAsync("canvasManager.changeMode", isHandDrawing);
+    }
+
+    private async Task ModeTyping()
+    {
+        isHandDrawing = false;
+        infoMode = "ACTIVE MODE : Text/Emoji";
+        await JS.InvokeVoidAsync("canvasManager.changeMode", isHandDrawing);
+    }
+
+    private async Task TriggerFileUpload()
+    {
+        await JS.InvokeVoidAsync("canvasManager.triggerFileUpload");
+    }
+
+    async Task OnBackgroundUpload(ChangeEventArgs e)
+    {
+        await JS.InvokeVoidAsync("canvasManager.loadBackgroundFromInput");
+    }
+}
+
+<style>
+    .divinput {
+        display: flex;
+        align-items: center; /* Agar elemen sejajar secara vertikal */
+        gap: 10px; /* Jarak antar elemen */
+        flex-wrap: wrap; /* Agar tetap responsif jika layar lebih kecil */
+    }
+
+    .input-container {
+        position: relative;
+        width: 250px; /* Sesuaikan lebar input */
+    }
+
+        .input-container input {
+            width: 100%;
+            padding-right: 30px; /* Ruang untuk tombol */
+            border: 1px solid #ccc;
+            padding: 10px;
+            border-radius: 4px;
+        }
+
+        .input-container button {
+            position: absolute;
+            right: 5px; /* Geser ke kanan dalam input */
+            top: 50%;
+            transform: translateY(-50%);
+            background: white;
+            color: white;
+            border: none;
+            padding: 5px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+
+</style>
